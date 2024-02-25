@@ -2,6 +2,7 @@ package com.thecodealchemist.main;
 
 import org.apache.ignite.Ignite;
 import org.apache.ignite.IgniteCache;
+import org.apache.ignite.IgniteDataStreamer;
 import org.apache.ignite.Ignition;
 import org.apache.ignite.cache.CacheAtomicityMode;
 import org.apache.ignite.cache.CacheMode;
@@ -13,6 +14,9 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
 
+import java.nio.file.Files;
+import java.nio.file.Paths;
+
 @SpringBootApplication
 public class IgniteDemoApplication {
 
@@ -23,10 +27,25 @@ public class IgniteDemoApplication {
 	@Bean
 	public ApplicationRunner applicationRunner(Ignite ignite) {
 		return args -> {
-			 IgniteCache<String, String> cache = ignite.getOrCreateCache("dummy");
-			 //cache.put("key1", "value1");
+//			 IgniteCache<String, String> cache = ignite.getOrCreateCache("dummy");
+//			 //cache.put("key1", "value1");
+//
+//			System.out.println(cache.get("key1"));
 
-			System.out.println(cache.get("key1"));
+			try(IgniteDataStreamer<String, String> ids = ignite.dataStreamer("dummy")) {
+				ids.allowOverwrite(true);
+
+			 	Files.
+						lines(Paths.get("C:\\Users\\vimau\\Downloads\\ignite-demo\\ignite-demo\\src\\main\\resources\\result.csv"))
+						.map(record -> record.split(","))
+						.forEach(arr -> {
+							ids.addData(arr[0], arr[3]);
+						});
+			}
+
+			IgniteCache<String, String> cache = ignite.getOrCreateCache("dummy");
+			System.out.println(cache.get("102"));
+
 
 		};
 	}
