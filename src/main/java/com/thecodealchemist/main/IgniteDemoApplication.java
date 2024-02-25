@@ -13,6 +13,8 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
 
+import java.util.concurrent.locks.Lock;
+
 @SpringBootApplication
 public class IgniteDemoApplication {
 
@@ -23,48 +25,49 @@ public class IgniteDemoApplication {
 	@Bean
 	public ApplicationRunner applicationRunner(Ignite ignite) {
 		return args -> {
-			 IgniteCache<String, String> cache = ignite.getOrCreateCache("dummy");
-			 //cache.put("key1", "value1");
+			 IgniteCache<String, String> cache = ignite.getOrCreateCache("locking-cache");
 
-			System.out.println(cache.get("key1"));
+			System.out.println(whichNode() + " is coming up!");
 
+			Lock lock = cache.lock("lock-key");
+
+			try {
+				System.out.println(whichNode() + " acquiring the lock");
+				lock.lock();
+				someTask();
+				System.out.println(whichNode() + " going to release the lock");
+			} finally {
+				lock.unlock();
+			}
 		};
+	}
+
+	private void someTask() throws InterruptedException {
+		System.out.println(whichNode() + " current running the task");
+		if("Node1".equals(whichNode())) {
+			Thread.sleep(50 * 1000);
+		}
+		System.out.println(whichNode() + " exiting from the method");
+	}
+
+	private String whichNode() {
+		return System.getProperty("whichNode");
 	}
 
 	@Bean
 	public Ignite ignite() {
 		IgniteConfiguration cfg = new IgniteConfiguration();
-		cfg.setDataStorageConfiguration(getDataStorageConfiguration());
 		cfg.setCacheConfiguration(getCacheConfiguration());
 
 		Ignite ignite = Ignition.start(cfg);
-		ignite.cluster().state(ClusterState.ACTIVE);
 		return ignite;
 	}
 
 	private CacheConfiguration getCacheConfiguration() {
 		CacheConfiguration<String, String> cc = new CacheConfiguration<>();
-		cc.setName("dummy");
-		cc.setOnheapCacheEnabled(false);
-		cc.setBackups(1);
-		cc.setCacheMode(CacheMode.REPLICATED);
+		cc.setName("locking-cache");
 		cc.setAtomicityMode(CacheAtomicityMode.TRANSACTIONAL);
 
 		return cc;
 	}
-
-	@NotNull
-	private static DataStorageConfiguration getDataStorageConfiguration() {
-		DataRegionConfiguration drc = new DataRegionConfiguration();
-		drc.setName("my-data-region");
-		drc.setInitialSize(10 * 1024 * 1024);
-		drc.setMaxSize(40 * 1024 * 1024);
-		drc.setPageEvictionMode(DataPageEvictionMode.RANDOM_2_LRU);
-		drc.setPersistenceEnabled(true);
-
-		DataStorageConfiguration dsc = new DataStorageConfiguration();
-		dsc.setDefaultDataRegionConfiguration(drc);
-		return dsc;
-	}
-
 }
