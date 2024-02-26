@@ -2,6 +2,7 @@ package com.thecodealchemist.main;
 
 import org.apache.ignite.Ignite;
 import org.apache.ignite.IgniteCache;
+import org.apache.ignite.IgniteQueue;
 import org.apache.ignite.Ignition;
 import org.apache.ignite.cache.CacheAtomicityMode;
 import org.apache.ignite.cache.CacheMode;
@@ -13,6 +14,8 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
 
+import java.util.stream.Stream;
+
 @SpringBootApplication
 public class IgniteDemoApplication {
 
@@ -23,48 +26,31 @@ public class IgniteDemoApplication {
 	@Bean
 	public ApplicationRunner applicationRunner(Ignite ignite) {
 		return args -> {
-			 IgniteCache<String, String> cache = ignite.getOrCreateCache("dummy");
-			 //cache.put("key1", "value1");
+			IgniteQueue<String> workQ = ignite.queue("workQ", 0, new CollectionConfiguration());
 
-			System.out.println(cache.get("key1"));
+			if("Node1".equals(whichNode())) {
+				Thread.sleep(30 * 1000);
+				Stream.of("a", "b").forEach(elem -> workQ.put(elem));
+			} else {
+				while(true) {
+					String item = workQ.take();
+					System.out.println("item = " + item);
+				}
+			}
+
 
 		};
 	}
 
+	public String whichNode() {
+		return System.getProperty("whichNode");
+	}
+
 	@Bean
 	public Ignite ignite() {
-		IgniteConfiguration cfg = new IgniteConfiguration();
-		cfg.setDataStorageConfiguration(getDataStorageConfiguration());
-		cfg.setCacheConfiguration(getCacheConfiguration());
-
-		Ignite ignite = Ignition.start(cfg);
-		ignite.cluster().state(ClusterState.ACTIVE);
+		Ignite ignite = Ignition.start();
 		return ignite;
 	}
 
-	private CacheConfiguration getCacheConfiguration() {
-		CacheConfiguration<String, String> cc = new CacheConfiguration<>();
-		cc.setName("dummy");
-		cc.setOnheapCacheEnabled(false);
-		cc.setBackups(1);
-		cc.setCacheMode(CacheMode.REPLICATED);
-		cc.setAtomicityMode(CacheAtomicityMode.TRANSACTIONAL);
-
-		return cc;
-	}
-
-	@NotNull
-	private static DataStorageConfiguration getDataStorageConfiguration() {
-		DataRegionConfiguration drc = new DataRegionConfiguration();
-		drc.setName("my-data-region");
-		drc.setInitialSize(10 * 1024 * 1024);
-		drc.setMaxSize(40 * 1024 * 1024);
-		drc.setPageEvictionMode(DataPageEvictionMode.RANDOM_2_LRU);
-		drc.setPersistenceEnabled(true);
-
-		DataStorageConfiguration dsc = new DataStorageConfiguration();
-		dsc.setDefaultDataRegionConfiguration(drc);
-		return dsc;
-	}
 
 }
